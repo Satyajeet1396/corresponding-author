@@ -33,8 +33,6 @@ def process_file(file):
         authors_affiliations = authors_with_affiliations.split(';')  # Split authors and affiliations by semicolon
 
         valid_authors = []  # List to store valid authors with their affiliations
-        corresponding_author = None
-        corresponding_affiliation = None
 
         # Process each author-affiliation pair
         for author_affiliation in authors_affiliations:
@@ -68,13 +66,18 @@ with st.container():
         st.write("Processed Data:")
         st.dataframe(processed_df)  # Display the updated dataframe
 
+        # Generate a new file name based on the uploaded file name
+        original_name = uploaded_file.name  # e.g. "data.csv"
+        base_name = original_name.rsplit(".", 1)[0]  # e.g. "data"
+        new_file_name = f"{base_name}_corresponding_updated.csv"
+
         # Button to download the updated CSV
         st.subheader("📥 Download Processed File")
         csv = processed_df.to_csv(index=False)
         st.download_button(
             label="Download Updated CSV",
             data=csv,
-            file_name="updated_affiliations.csv",
+            file_name=new_file_name,
             mime="text/csv"
         )
     else:
