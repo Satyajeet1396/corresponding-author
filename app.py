@@ -27,10 +27,16 @@ def process_file(file):
     df['Corresponding Author'] = ""
     df['Corresponding Affiliation'] = ""
 
-    # Process each row in the dataset
-    for index, row in df.iterrows():
-        authors_with_affiliations = row['Authors with affiliations']  # Ensure this matches your actual column name
+# Process each row in the dataset
+for index, row in df.iterrows():
+    authors_with_affiliations = row['Authors with affiliations']  # Ensure this matches your actual column name
+    
+    # Safeguard against None or NaN values
+    if pd.isna(authors_with_affiliations) or not isinstance(authors_with_affiliations, str):
+        authors_affiliations = []
+    else:
         authors_affiliations = authors_with_affiliations.split(';')  # Split authors and affiliations by semicolon
+
 
         valid_authors = []  # List to store valid authors with their affiliations
 
