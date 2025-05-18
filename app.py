@@ -12,149 +12,110 @@ exclusion_keywords = ["College", "Affiliated to"]
 
 # Streamlit UI
 st.title("Research Author Affiliation Processor")
-st.write("Upload a CSV file containing authors with affiliations to extract authors from Shivaji University, Kolhapur, and Saveetha University.")
+st.write("""
+Upload a CSV file containing an **'Authors with affiliations'** column.
+This will extract the corresponding author and affiliation  
+for Shivaji University or Saveetha University entries.
+""")
 
-# Container for uploading CSV
-with st.container():
-    st.subheader("📂 Upload CSV File")
-    uploaded_file = st.file_uploader("Upload CSV", type="csv")
+# File uploader
+uploaded_file = st.file_uploader("📂 Upload CSV", type="csv")
 
-# Function to process the CSV file and extract corresponding author and affiliation
-def process_file(file):
+def process_file(file) -> pd.DataFrame | None:
     try:
-        # Read the uploaded CSV
         df = pd.read_csv(file)
 
-        # Check if the required column exists
+        # Ensure the column exists
         if 'Authors with affiliations' not in df.columns:
-            st.error("CSV is missing the 'Authors with affiliations' column.")
+            st.error("❌ CSV is missing the `'Authors with affiliations'` column.")
             return None
 
-        # Initialize new columns for corresponding author and affiliation
+        # Prep output columns
         df['Corresponding Author'] = ""
         df['Corresponding Affiliation'] = ""
 
-        # Process each row in the dataset
-        for index, row in df.iterrows():
-            authors_with_affiliations = row['Authors with affiliations']
+        # Iterate rows
+        for idx, row in df.iterrows():
+            raw = row['Authors with affiliations']
 
-            # Safeguard against None, NaN, or non-string values
-            if pd.isna(authors_with_affiliations) or not isinstance(authors_with_affiliations, str):
-                authors_affiliations = []
+            # Only split if it's a non-null string
+            if isinstance(raw, str):
+                pairs = raw.split(';')
             else:
-                authors_affiliations = authors_with_affiliations.split(';')
+                pairs = []
 
-            valid_authors = []  # List to store valid authors with their affiliations
+            valid_authors = []
+            for token in pairs:
+                name_aff = token.strip().split(',', 1)
+                if len(name_aff) != 2:
+                    continue
+                name, aff = name_aff
+                aff = aff.strip()
 
-            # Process each author-affiliation pair
-            for author_affiliation in authors_affiliations:
-                parts = author_affiliation.strip().split(',', 1)
-                if len(parts) == 2:
-                    name, affiliation = parts
-                    affiliation = affiliation.strip()
+                # Saveetha University always allowed
+                if "Saveetha University" in aff:
+                    valid_authors.append((name.strip(), aff))
+                # Other valid affiliations, excluding keywords
+                elif any(v in aff for v in valid_affiliations):
+                    if not any(ex in aff for ex in exclusion_keywords):
+                        valid_authors.append((name.strip(), aff))
 
-                    # Handle Saveetha University (ignore exclusion keywords)
-                    if "Saveetha University" in affiliation:
-                        if "Saveetha University" in valid_affiliations:
-                            valid_authors.append((name.strip(), affiliation))
-                    # Handle other affiliations (consider exclusion keywords)
-                    elif any(valid_affiliation in affiliation for valid_affiliation in valid_affiliations):
-                        if not any(exclusion in affiliation for exclusion in exclusion_keywords):
-                            valid_authors.append((name.strip(), affiliation))
-
-            # If valid authors are found, consider the last one as the corresponding author
+            # Last valid entry → corresponding author
             if valid_authors:
-                corresponding_author, corresponding_affiliation = valid_authors[-1]
-                df.at[index, 'Corresponding Author'] = corresponding_author
-                df.at[index, 'Corresponding Affiliation'] = corresponding_affiliation
-        
+                ca, caf = valid_authors[-1]
+                df.at[idx, 'Corresponding Author'] = ca
+                df.at[idx, 'Corresponding Affiliation'] = caf
+
         return df
 
     except Exception as e:
-        st.error(f"An error occurred while processing the file: {e}")
+        st.error(f"❌ Error processing file: {e}")
         return None
 
-# Container for processing file
-with st.container():
-    if uploaded_file:
-        st.write("Processing the uploaded file...")
-        processed_df = process_file(uploaded_file)
+# Process & display
+if uploaded_file:
+    st.info("⏳ Processing...")
+    result_df = process_file(uploaded_file)
+    if result_df is not None:
+        st.success("✅ Done!")
+        st.dataframe(result_df)
 
-        if processed_df is not None:
-            st.write("Processed Data:")
-            st.dataframe(processed_df)  # Display the updated dataframe
+        # Download button
+        base = uploaded_file.name.rsplit('.', 1)[0]
+        out_name = f"{base}_corresponding_updated.csv"
+        csv_data = result_df.to_csv(index=False)
+        st.download_button("📥 Download CSV", csv_data, file_name=out_name, mime="text/csv")
+else:
+    st.info("Please upload a CSV to begin.")
 
-            # Generate a new file name based on the uploaded file name
-            original_name = uploaded_file.name
-            base_name = original_name.rsplit(".", 1)[0]
-            new_file_name = f"{base_name}_corresponding_updated.csv"
-
-            # Button to download the updated CSV
-            st.subheader("📥 Download Processed File")
-            csv = processed_df.to_csv(index=False)
-            st.download_button(
-                label="Download Updated CSV",
-                data=csv,
-                file_name=new_file_name,
-                mime="text/csv"
-            )
-        else:
-            st.error("File processing failed. Please check the log above.")
-    else:
-        st.info("Upload a CSV file to start processing.")
-
-# Info section about the creator
+# Footer / support
+st.markdown("---")
 st.info("Created by Dr. Satyajeet Patil")
-st.info("For more cool apps like this visit: https://patilsatyajeet.wixsite.com/home/python")
+st.markdown("[Visit my Python apps](https://patilsatyajeet.wixsite.com/home/python)")
 
-# Support section in an expandable container
-with st.expander("🤝 Support Our Research", expanded=False):
-    st.markdown(""" 
-        <div style='text-align: center; padding: 1rem; background-color: #f0f2f6; border-radius: 10px; margin: 1rem 0;'>
-            <h3>🙏 Your Support Makes a Difference!</h3>
-            <p>Your contribution helps us continue developing free tools for the research community.</p>
-            <p>Every donation, no matter how small, fuels our research journey!</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Two columns for QR code and Buy Me a Coffee button
+with st.expander("🤝 Support Our Research"):
     col1, col2 = st.columns(2)
-
     with col1:
         st.markdown("#### UPI Payment")
-        def generate_qr_code(data):
+        def make_qr(data):
             qr = qrcode.make(data)
-            buffer = BytesIO()
-            qr.save(buffer, format="PNG")
-            buffer.seek(0)
-            return buffer
+            buf = BytesIO()
+            qr.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
 
-        upi_url = "upi://pay?pa=satyajeet1396@oksbi&pn=Satyajeet Patil&cu=INR"
-        buffer = generate_qr_code(upi_url)
-        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-
+        upi = "upi://pay?pa=satyajeet1396@oksbi&pn=Satyajeet Patil&cu=INR"
+        buf = make_qr(upi)
+        img_b64 = base64.b64encode(buf.getvalue()).decode()
         st.markdown("Scan to pay: **satyajeet1396@oksbi**")
-        st.markdown(
-            f"""
-            <div style="display: flex; justify-content: center; align-items: center;">
-                <img src="data:image/png;base64,{qr_base64}" width="200">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown(f'<img src="data:image/png;base64,{img_b64}" width="200"/>', unsafe_allow_html=True)
 
     with col2:
         st.markdown("#### Buy Me a Coffee")
-        st.markdown("Support through Buy Me a Coffee platform:")
         st.markdown(
             """
-            <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                <a href="https://www.buymeacoffee.com/researcher13" target="_blank">
-                    <img src="https://img.buymeacoffee.com/button-api/?text=Support our Research&emoji=&slug=researcher13&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Support our Research"/>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
+            <a href="https://www.buymeacoffee.com/researcher13" target="_blank">
+              <img src="https://img.buymeacoffee.com/button-api/?text=Support our Research&emoji=&slug=researcher13" alt="Support our Research"/>
+            </a>
+            """, unsafe_allow_html=True
         )
-
-st.info("A small donation from you can fuel our research journey, turning ideas into breakthroughs that can change lives!")
