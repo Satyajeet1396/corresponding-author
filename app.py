@@ -21,71 +21,85 @@ with st.container():
 
 # Function to process the CSV file and extract corresponding author and affiliation
 def process_file(file):
-    df = pd.read_csv(file)
+    try:
+        # Read the uploaded CSV
+        df = pd.read_csv(file)
 
-    # Initialize new columns for corresponding author and affiliation
-    df['Corresponding Author'] = ""
-    df['Corresponding Affiliation'] = ""
+        # Check if the required column exists
+        if 'Authors with affiliations' not in df.columns:
+            st.error("CSV is missing the 'Authors with affiliations' column.")
+            return None
 
-# Process each row in the dataset
-for index, row in df.iterrows():
-    authors_with_affiliations = row['Authors with affiliations']  # Ensure this matches your actual column name
-    
-    # Safeguard against None or NaN values
-    if pd.isna(authors_with_affiliations) or not isinstance(authors_with_affiliations, str):
-        authors_affiliations = []
-    else:
-        authors_affiliations = authors_with_affiliations.split(';')  # Split authors and affiliations by semicolon
+        # Initialize new columns for corresponding author and affiliation
+        df['Corresponding Author'] = ""
+        df['Corresponding Affiliation'] = ""
 
+        # Process each row in the dataset
+        for index, row in df.iterrows():
+            authors_with_affiliations = row['Authors with affiliations']
 
-        valid_authors = []  # List to store valid authors with their affiliations
+            # Safeguard against None, NaN, or non-string values
+            if pd.isna(authors_with_affiliations) or not isinstance(authors_with_affiliations, str):
+                authors_affiliations = []
+            else:
+                authors_affiliations = authors_with_affiliations.split(';')
 
-        # Process each author-affiliation pair
-        for author_affiliation in authors_affiliations:
-            parts = author_affiliation.strip().split(',', 1)  # Split name and affiliation
-            if len(parts) == 2:
-                name, affiliation = parts
-                affiliation = affiliation.strip()  # Clean up the affiliation
+            valid_authors = []  # List to store valid authors with their affiliations
 
-                # Handle Saveetha University (ignore exclusion keywords)
-                if "Saveetha University" in affiliation:
-                    if "Saveetha University" in valid_affiliations:
-                        valid_authors.append((name.strip(), affiliation))
-                # Handle other affiliations (consider exclusion keywords)
-                elif any(valid_affiliation in affiliation for valid_affiliation in valid_affiliations):
-                    if not any(exclusion in affiliation for exclusion in exclusion_keywords):
-                        valid_authors.append((name.strip(), affiliation))
+            # Process each author-affiliation pair
+            for author_affiliation in authors_affiliations:
+                parts = author_affiliation.strip().split(',', 1)
+                if len(parts) == 2:
+                    name, affiliation = parts
+                    affiliation = affiliation.strip()
 
-        # If valid authors are found, consider the last one as the corresponding author
-        if valid_authors:
-            corresponding_author, corresponding_affiliation = valid_authors[-1]
-            df.at[index, 'Corresponding Author'] = corresponding_author
-            df.at[index, 'Corresponding Affiliation'] = corresponding_affiliation
+                    # Handle Saveetha University (ignore exclusion keywords)
+                    if "Saveetha University" in affiliation:
+                        if "Saveetha University" in valid_affiliations:
+                            valid_authors.append((name.strip(), affiliation))
+                    # Handle other affiliations (consider exclusion keywords)
+                    elif any(valid_affiliation in affiliation for valid_affiliation in valid_affiliations):
+                        if not any(exclusion in affiliation for exclusion in exclusion_keywords):
+                            valid_authors.append((name.strip(), affiliation))
 
-    return df
+            # If valid authors are found, consider the last one as the corresponding author
+            if valid_authors:
+                corresponding_author, corresponding_affiliation = valid_authors[-1]
+                df.at[index, 'Corresponding Author'] = corresponding_author
+                df.at[index, 'Corresponding Affiliation'] = corresponding_affiliation
+        
+        return df
+
+    except Exception as e:
+        st.error(f"An error occurred while processing the file: {e}")
+        return None
 
 # Container for processing file
 with st.container():
     if uploaded_file:
         st.write("Processing the uploaded file...")
         processed_df = process_file(uploaded_file)
-        st.write("Processed Data:")
-        st.dataframe(processed_df)  # Display the updated dataframe
 
-        # Generate a new file name based on the uploaded file name
-        original_name = uploaded_file.name  # e.g. "data.csv"
-        base_name = original_name.rsplit(".", 1)[0]  # e.g. "data"
-        new_file_name = f"{base_name}_corresponding_updated.csv"
+        if processed_df is not None:
+            st.write("Processed Data:")
+            st.dataframe(processed_df)  # Display the updated dataframe
 
-        # Button to download the updated CSV
-        st.subheader("📥 Download Processed File")
-        csv = processed_df.to_csv(index=False)
-        st.download_button(
-            label="Download Updated CSV",
-            data=csv,
-            file_name=new_file_name,
-            mime="text/csv"
-        )
+            # Generate a new file name based on the uploaded file name
+            original_name = uploaded_file.name
+            base_name = original_name.rsplit(".", 1)[0]
+            new_file_name = f"{base_name}_corresponding_updated.csv"
+
+            # Button to download the updated CSV
+            st.subheader("📥 Download Processed File")
+            csv = processed_df.to_csv(index=False)
+            st.download_button(
+                label="Download Updated CSV",
+                data=csv,
+                file_name=new_file_name,
+                mime="text/csv"
+            )
+        else:
+            st.error("File processing failed. Please check the log above.")
     else:
         st.info("Upload a CSV file to start processing.")
 
@@ -108,7 +122,6 @@ with st.expander("🤝 Support Our Research", expanded=False):
 
     with col1:
         st.markdown("#### UPI Payment")
-        # Generate UPI QR code
         def generate_qr_code(data):
             qr = qrcode.make(data)
             buffer = BytesIO()
@@ -120,7 +133,6 @@ with st.expander("🤝 Support Our Research", expanded=False):
         buffer = generate_qr_code(upi_url)
         qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
-        # Display QR code
         st.markdown("Scan to pay: **satyajeet1396@oksbi**")
         st.markdown(
             f"""
@@ -134,7 +146,6 @@ with st.expander("🤝 Support Our Research", expanded=False):
     with col2:
         st.markdown("#### Buy Me a Coffee")
         st.markdown("Support through Buy Me a Coffee platform:")
-        # Buy Me a Coffee button
         st.markdown(
             """
             <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
